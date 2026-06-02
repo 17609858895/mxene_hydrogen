@@ -1,0 +1,10 @@
+joblib
+matplotlib
+networkx
+numpy
+openpyxl
+pandas
+python-pptx
+scikit-learn
+scipy
+seaborn
