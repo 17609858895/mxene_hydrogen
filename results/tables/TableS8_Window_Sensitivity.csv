@@ -1,0 +1,10 @@
+﻿Window centre (eV),Window width (eV),Spearman rho vs reference,Top-3 dopants,Top-3 overlap with reference
+-0.6,0.6,0.9835,"Pt, V, Pd",3
+-0.6,0.9,0.9615,"V, Pd, Pt",3
+-0.6,1.2,0.9505,"V, Pd, Pt",3
+-0.8,0.6,0.956,"V, Pt, Ru",2
+-0.8,0.9,1.0,"V, Pt, Pd",3
+-0.8,1.2,0.967,"V, Pd, Pt",3
+-1.0,0.6,0.7527,"V, Ru, Au",1
+-1.0,0.9,0.9121,"V, Ru, Pt",2
+-1.0,1.2,0.9176,"V, Pd, Pt",3

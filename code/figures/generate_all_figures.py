@@ -28,7 +28,7 @@ from sklearn.ensemble import (
 from sklearn.impute import SimpleImputer
 from sklearn.inspection import permutation_importance
 from sklearn.metrics import mean_absolute_error, r2_score
-from sklearn.model_selection import KFold, learning_curve, train_test_split
+from sklearn.model_selection import KFold, cross_val_predict, learning_curve, train_test_split
 from sklearn.neural_network import MLPRegressor
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OneHotEncoder, StandardScaler
@@ -41,6 +41,8 @@ warnings.filterwarnings("ignore")
 ROOT = Path(__file__).resolve().parents[2]
 DATA_PATH = ROOT / "data" / "raw" / "Comprehensive Dataset on MXene Properties for Catalyst Design (2024).xlsx"
 OUT = ROOT / "outputs" / "figures"
+for _i in range(1, 10):
+    (OUT / f"Fig{_i:02d}").mkdir(parents=True, exist_ok=True)
 
 RANDOM_STATE = 42
 
@@ -51,8 +53,8 @@ def configure_style() -> None:
         {
             "figure.dpi": 150,
             "savefig.dpi": 600,
-            "font.family": "Arial",
-            "font.sans-serif": ["Arial", "DejaVu Sans"],
+            "font.family": "sans-serif",
+            "font.sans-serif": ["Arial", "Liberation Sans", "DejaVu Sans"],
             "axes.titlesize": 14,
             "axes.labelsize": 13,
             "axes.labelweight": "bold",
@@ -228,6 +230,19 @@ def style_axes(ax, tick_size: int = 12, label_size: int = 13, title_size: int = 
         spine.set_linewidth(1.35)
 
 
+def add_panel_labels(fig: plt.Figure, axes, fontsize: float = 20, pad_pt: float = 4.0) -> None:
+    """Place (a), (b), ... at the upper-left corner of each panel's tight bounding box."""
+    fig.canvas.draw()
+    renderer = fig.canvas.get_renderer()
+    inv = fig.transFigure.inverted()
+    for i, ax in enumerate(axes):
+        tb = ax.get_tightbbox(renderer)
+        ab = ax.get_window_extent(renderer)
+        x0, _ = inv.transform((tb.x0, tb.y0))
+        _, y1 = inv.transform((ab.x0, ab.y1 + pad_pt * fig.dpi / 72))
+        fig.text(x0, y1, f"({chr(97 + i)})", ha="left", va="bottom", fontsize=fontsize, color=PALETTE["ink"])
+
+
 def savefig(fig: plt.Figure, fig_no: int, name: str) -> None:
     folder = OUT / f"Fig{fig_no:02d}"
     folder.mkdir(parents=True, exist_ok=True)
@@ -307,7 +322,9 @@ ELEMENTS = {
     "Au": (79, 11, 6, 2.54, 136),
 }
 
-ALIASES = {"Rd": "Rh"}
+# The dopants sheet lists "Rd" for the four Pd@W2CO2 records; the Name field
+# identifies the dopant as Pd (corrected in the revision; previously mapped to Rh).
+ALIASES = {"Rd": "Pd"}
 
 
 def elem_tuple(symbol) -> tuple[float, float, float, float, float]:
@@ -487,24 +504,44 @@ def rmse(y_true, y_pred) -> float:
     return float(np.sqrt(np.mean((np.asarray(y_true) - np.asarray(y_pred)) ** 2)))
 
 
-def safe_mape(y_true, y_pred) -> float:
-    denom = np.maximum(np.abs(np.asarray(y_true)), 0.10)
-    return float(np.mean(np.abs((np.asarray(y_true) - np.asarray(y_pred)) / denom)) * 100)
+METRIC_COLS = ["R2", "RMSE", "MAE", "nRMSE"]
+CV_FOLDS = 5
 
 
-def metrics(y_true, y_pred) -> dict[str, float]:
+def metrics(y_true, y_pred, y_range: float | None = None) -> dict[str, float]:
+    """R2, RMSE, MAE and range-normalised RMSE.
+
+    MAPE is deliberately not used: adsorption energies are negative or close to
+    zero, so percentage errors are numerically unstable. ``y_range`` is the
+    target range of the training data; if omitted, the range of ``y_true`` is used.
+    """
+    y_true = np.asarray(y_true, dtype=float)
+    if y_range is None:
+        y_range = float(np.nanmax(y_true) - np.nanmin(y_true))
+    err = rmse(y_true, y_pred)
     return {
         "R2": float(r2_score(y_true, y_pred)),
-        "RMSE": rmse(y_true, y_pred),
+        "RMSE": err,
         "MAE": float(mean_absolute_error(y_true, y_pred)),
-        "MAPE": safe_mape(y_true, y_pred),
+        "nRMSE": err / y_range if y_range > 0 else np.nan,
     }
+
+
+def cv_metric_table(models: dict[str, Pipeline], x_train: pd.DataFrame, y_train: pd.Series) -> pd.DataFrame:
+    """Pooled out-of-fold metrics from 5-fold CV inside the training set only."""
+    y_range = float(y_train.max() - y_train.min())
+    cv = KFold(n_splits=CV_FOLDS, shuffle=True, random_state=RANDOM_STATE)
+    rows = []
+    for name, pipe in models.items():
+        oof = cross_val_predict(clone(pipe), x_train, y_train, cv=cv)
+        rows.append({"Model": name, **metrics(y_train, oof, y_range)})
+    return pd.DataFrame(rows).set_index("Model")
 
 
 def entropy_topsis(metric_df: pd.DataFrame) -> pd.DataFrame:
     benefit = pd.DataFrame(index=metric_df.index)
     benefit["R2"] = metric_df["R2"].clip(lower=0)
-    for col in ["RMSE", "MAE", "MAPE"]:
+    for col in ["RMSE", "MAE", "nRMSE"]:
         benefit[col] = 1 / (metric_df[col] + 1e-9)
     arr = benefit.to_numpy(dtype=float)
     arr = (arr - arr.min(axis=0)) / (arr.max(axis=0) - arr.min(axis=0) + 1e-12)
@@ -520,7 +557,7 @@ def entropy_topsis(metric_df: pd.DataFrame) -> pd.DataFrame:
     out = metric_df.copy()
     out["TOPSIS_score"] = closeness
     out["ensemble_weight"] = closeness / closeness.sum()
-    for name, val in zip(["w_R2", "w_RMSE", "w_MAE", "w_MAPE"], weights):
+    for name, val in zip(["w_R2", "w_RMSE", "w_MAE", "w_nRMSE"], weights):
         out[name] = val
     return out.sort_values("TOPSIS_score", ascending=False)
 
@@ -549,6 +586,11 @@ def prepare_training(wgs: pd.DataFrame, dop: pd.DataFrame):
     )
     preprocessor = build_preprocessor(x_wgs)
     models = make_models(preprocessor)
+    y_range = float(y_train.max() - y_train.min())
+    # Ensemble weights are fixed from training-set cross-validation before the
+    # hold-out set is touched; the hold-out set is used once, for evaluation.
+    cv_metrics = cv_metric_table(models, x_train, y_train)
+    topsis = entropy_topsis(cv_metrics[METRIC_COLS])
     preds_test = {}
     preds_train = {}
     preds_dop = {}
@@ -563,11 +605,10 @@ def prepare_training(wgs: pd.DataFrame, dop: pd.DataFrame):
         preds_test[name] = pred_test
         preds_train[name] = pred_train
         preds_dop[name] = pred_dop
-        row = {"Model": name, **metrics(y_test, pred_test), **{f"Train_{k}": v for k, v in metrics(y_train, pred_train).items()}}
+        row = {"Model": name, **metrics(y_test, pred_test, y_range), **{f"Train_{k}": v for k, v in metrics(y_train, pred_train, y_range).items()}}
         rows.append(row)
 
     metric_df = pd.DataFrame(rows).set_index("Model")
-    topsis = entropy_topsis(metric_df[["R2", "RMSE", "MAE", "MAPE"]])
     weights = topsis["ensemble_weight"].reindex(metric_df.index).to_numpy()
     ens_test = np.column_stack([preds_test[m] for m in metric_df.index]) @ weights
     ens_train = np.column_stack([preds_train[m] for m in metric_df.index]) @ weights
@@ -576,8 +617,8 @@ def prepare_training(wgs: pd.DataFrame, dop: pd.DataFrame):
     preds_test["TOPSIS_ensemble"] = ens_test
     preds_train["TOPSIS_ensemble"] = ens_train
     preds_dop["TOPSIS_ensemble"] = ens_dop
-    metric_df.loc["TOPSIS_ensemble", ["R2", "RMSE", "MAE", "MAPE"]] = list(metrics(y_test, ens_test).values())
-    metric_df.loc["TOPSIS_ensemble", ["Train_R2", "Train_RMSE", "Train_MAE", "Train_MAPE"]] = list(metrics(y_train, ens_train).values())
+    metric_df.loc["TOPSIS_ensemble", METRIC_COLS] = list(metrics(y_test, ens_test, y_range).values())
+    metric_df.loc["TOPSIS_ensemble", [f"Train_{k}" for k in METRIC_COLS]] = list(metrics(y_train, ens_train, y_range).values())
 
     best_model = topsis.index[0]
     return {
@@ -596,6 +637,8 @@ def prepare_training(wgs: pd.DataFrame, dop: pd.DataFrame):
         "preds_dop": preds_dop,
         "metrics": metric_df,
         "topsis": topsis,
+        "cv_metrics": cv_metrics,
+        "y_range": y_range,
         "best_model": best_model,
         "weights": pd.Series(weights, index=metric_df.index[:-1]),
     }
@@ -655,7 +698,7 @@ def figure_1(wgs: pd.DataFrame, dop: pd.DataFrame) -> None:
         ("Data audit", "WGS: 600 rows\nEads labels: 599\nBarrier labels: 62", (0.05, 0.58), PALETTE["blue"]),
         ("Feature engineering", "Structure + Bader charge\nElement properties\nAdsorbate descriptors", (0.25, 0.58), PALETTE["cyan"]),
         ("Model library", "RF / ExtraTrees / GBR\nHGBR / SVR / MLP\nK-fold + hold-out", (0.45, 0.58), PALETTE["green"]),
-        ("TOPSIS ensemble", "Entropy weights from\nR2, RMSE, MAE, MAPE\nRobust weighted prediction", (0.65, 0.58), PALETTE["gold"]),
+        ("TOPSIS ensemble", "Entropy weights from\n5-fold CV R2, RMSE, MAE, nRMSE\nWeighted prediction", (0.65, 0.58), PALETTE["gold"]),
         ("Interpretation", "Contribution map\nPDP / ALE\nSensitivity DAG", (0.85, 0.58), PALETTE["red"]),
         ("External dopant domain", f"dopants: {len(dop)} labeled Eads\nResidual analysis\nCandidate ranking", (0.45, 0.18), PALETTE["purple"]),
     ]
@@ -822,8 +865,9 @@ def figure_3(context: dict, wgs: pd.DataFrame) -> pd.DataFrame:
     if len(candidate) < 8:
         candidate = top_numeric_features(num, 14)
     corr = num[candidate].corr(method="spearman").fillna(0).clip(-1, 1)
-    dist = 1 - np.abs(corr)
-    np.fill_diagonal(dist.values, 0)
+    dist_arr = 1 - np.abs(corr.to_numpy(copy=True))
+    np.fill_diagonal(dist_arr, 0)
+    dist = pd.DataFrame(dist_arr, index=corr.index, columns=corr.columns)
     Z = linkage(squareform(dist.values, checks=False), method="average")
 
     # Consensus from three filters.
@@ -917,9 +961,11 @@ def figure_4(context: dict) -> None:
     hi = max(np.max(v) for v in all_y + all_pred) + 0.45
     xs = np.array([lo, hi])
 
+    panel_axes = []
     for i, name in enumerate(models):
         inner_gs = outer_gs[i // 3, i % 3].subgridspec(1, 2, width_ratios=[4.15, 1.2], wspace=0.045)
         ax = fig.add_subplot(inner_gs[0, 0])
+        panel_axes.append(ax)
         ax_res = fig.add_subplot(inner_gs[0, 1], sharey=ax)
         c = MODEL_COLORS.get(name, PALETTE["blue"])
         pred_train = context["preds_train"][name]
@@ -1063,7 +1109,7 @@ def figure_4(context: dict) -> None:
     xs_lc = lc_summary.index.to_numpy(dtype=float)
     for mean_col, sd_col, color, label in [
         ("train_mean", "train_sd", MODEL_COLORS["ExtraTrees"], "Training"),
-        ("val_mean", "val_sd", PALETTE["red"], "Validation"),
+        ("val_mean", "val_sd", PALETTE["red"], "Hold-out test"),
     ]:
         mean = lc_summary[mean_col].to_numpy(dtype=float)
         sd = lc_summary[sd_col].fillna(0).to_numpy(dtype=float)
@@ -1080,6 +1126,7 @@ def figure_4(context: dict) -> None:
     style_axes(ax_lc, tick_size=11, label_size=12)
 
     context["metrics"].to_csv(OUT / "Fig04" / "model_metrics.csv", encoding="utf-8-sig")
+    add_panel_labels(fig, panel_axes + [ax_metrics, ax_lc], fontsize=24)
     savefig(fig, 4, "model_benchmark")
 
 
@@ -1157,6 +1204,7 @@ def figure_5(context: dict) -> None:
 
     context["topsis"].to_csv(OUT / "Fig05" / "topsis_weights.csv", encoding="utf-8-sig")
     pmat.to_csv(OUT / "Fig05" / "wilcoxon_p_values.csv", encoding="utf-8-sig")
+    add_panel_labels(fig, [ax0, ax1, ax2])
     savefig(fig, 5, "topsis_wilcoxon")
 
 
@@ -1167,7 +1215,7 @@ def replace_feature_values(x: pd.DataFrame, feature: str, value) -> pd.DataFrame
 
 
 def feature_reference_value(x_train: pd.DataFrame, feature: str):
-    if x_train[feature].dtype == "object":
+    if not pd.api.types.is_numeric_dtype(x_train[feature]):
         return x_train[feature].mode(dropna=True).iloc[0]
     return float(pd.to_numeric(x_train[feature], errors="coerce").median())
 
@@ -1224,7 +1272,7 @@ def figure_6(context: dict, imp: pd.DataFrame) -> None:
         xx = replace_feature_values(sample, f, ref)
         delta = pred - pipe.predict(xx)
         raw = sample[f]
-        if raw.dtype == "object":
+        if not pd.api.types.is_numeric_dtype(raw):
             codes = pd.Categorical(raw).codes
             val = (codes - codes.min()) / (codes.max() - codes.min() + 1e-9)
         else:
@@ -1319,11 +1367,13 @@ def figure_6(context: dict, imp: pd.DataFrame) -> None:
     ax4.set_ylabel(r"Centered E$_{ads}$ prediction (eV)")
     cb = fig.colorbar(sc, ax=ax4, fraction=0.045, pad=0.02)
     cb.ax.tick_params(labelsize=11, width=1.25, length=4.5, direction="out", color=PALETTE["ink"], labelcolor=PALETTE["ink"])
+    cb.set_label("Adsorbate molar mass (g mol$^{-1}$)" if interaction == "Mol_mw" else pretty(interaction), fontsize=11)
     ax4.xaxis.set_major_locator(MaxNLocator(5))
     ax4.yaxis.set_major_locator(MaxNLocator(5))
     style_axes(ax4)
 
-    contrib_df.to_csv(OUT / "Fig06" / "shap_style_contributions.csv", index=False, encoding="utf-8-sig")
+    contrib_df.to_csv(OUT / "Fig06" / "perturbation_contributions.csv", index=False, encoding="utf-8-sig")
+    add_panel_labels(fig, [ax0, ax1, ax2, ax3, ax4])
     savefig(fig, 6, "interpretability")
 
 
@@ -1394,17 +1444,27 @@ def figure_7(context: dict, wgs: pd.DataFrame, imp: pd.DataFrame) -> None:
     labels = {
         "Composition": "Compo-\nsition",
         "Surface termination": "Surface\nterm.",
-        "Structure": "Structure",
-        "Electronic state": "Electronic\nstate",
-        "Adsorbate": "Adsorbate",
+        "Structure": "Struc-\nture",
+        "Electronic state": "Electr.\nstate",
+        "Adsorbate": "Adsor-\nbate",
         "E_ads": r"E$_{ads}$",
         "Reaction path": "Reaction\npath",
-        "Activation barrier": "Activation\nbarrier",
+        "Activation barrier": "Activ.\nbarrier",
     }
     node_colors = [PALETTE["blue"], PALETTE["cyan"], PALETTE["green"], PALETTE["green"], PALETTE["orange"], PALETTE["red"], PALETTE["purple"], PALETTE["gold"]]
     nx.draw_networkx_edges(G, pos, ax=ax0, arrows=True, arrowstyle="-|>", arrowsize=12, edge_color=PALETTE["muted"], width=1.3)
-    nx.draw_networkx_nodes(G, pos, ax=ax0, node_size=1500, node_color=node_colors, edgecolors="white", linewidths=1.3)
-    nx.draw_networkx_labels(G, pos, labels=labels, ax=ax0, font_size=7.4, font_color=PALETTE["ink"], font_weight="bold")
+    nx.draw_networkx_nodes(G, pos, ax=ax0, node_size=2300, node_color=node_colors, edgecolors="white", linewidths=1.3)
+    # Pick each label color for maximum contrast against its node fill:
+    # white text on dark nodes, dark navy text on light nodes (auto by perceived luminance).
+    def _label_color(hex_color):
+        h = hex_color.lstrip("#")
+        r, g, b = (int(h[i:i + 2], 16) for i in (0, 2, 4))
+        lum = 0.299 * r + 0.587 * g + 0.114 * b  # perceived brightness 0-255
+        return "white" if lum < 150 else PALETTE["ink"]
+    node_label_color = {node: _label_color(col) for node, col in zip(G.nodes(), node_colors)}
+    for node, (lx, ly) in pos.items():
+        ax0.text(lx, ly, labels[node], ha="center", va="center",
+                 fontsize=7.4, fontweight="bold", color=node_label_color[node])
     ax0.set_title("")
     ax0.set_axis_off()
     ax0.set_xlim(0, 1.05)
@@ -1424,7 +1484,7 @@ def figure_7(context: dict, wgs: pd.DataFrame, imp: pd.DataFrame) -> None:
     ax1.set_yticks(y)
     ax1.set_yticklabels([label_feature(f) for f in eff["Feature"]])
     ax1.set_title("")
-    ax1.set_xlabel(r"Mean $\Delta$E$_{ads}$ prediction (eV)")
+    ax1.set_xlabel(r"Mean $\Delta$E$_{ads}$ prediction, +0.5 SD (eV)")
     ax1.xaxis.set_major_locator(MaxNLocator(5))
     style_axes(ax1)
 
@@ -1521,7 +1581,7 @@ def figure_8(context: dict) -> None:
     ax0.text(
         0.04,
         0.95,
-        f"Direct transfer failed\nR$^2$ = {dop_metrics['R2']:.2f}\nRMSE = {dop_metrics['RMSE']:.2f}\nSpearman rho = {rho:.2f}",
+        f"Direct transfer (n = {len(dop)})\nR$^2$ = {dop_metrics['R2']:.2f}\nRMSE = {dop_metrics['RMSE']:.2f} eV\nMAE = {dop_metrics['MAE']:.2f} eV\nSpearman $\\rho$ = {rho:.2f}",
         transform=ax0.transAxes,
         va="top",
         fontsize=9.7,
@@ -1602,8 +1662,12 @@ def figure_8(context: dict) -> None:
         rect = patches.Rectangle((x - 0.45, y - 0.40), 0.82, 0.72, facecolor=color, edgecolor="white", linewidth=1.0)
         ax3.add_patch(rect)
         text_color = "white" if norm(row["dft_score"]) > 0.72 else PALETTE["ink"]
-        ax3.text(x - 0.04, y + 0.08, element, ha="center", va="center", fontsize=11, weight="bold", color=text_color)
-        ax3.text(x - 0.04, y - 0.16, f"{row['dft_score']:.2f}", ha="center", va="center", fontsize=8, color=text_color)
+        if row["n"] < 3:
+            rect.set_hatch("///")
+            rect.set_edgecolor(PALETTE["muted"])
+        ax3.text(x - 0.04, y + 0.12, element, ha="center", va="center", fontsize=11, weight="bold", color=text_color)
+        ax3.text(x - 0.04, y - 0.10, f"{row['dft_score']:.2f}", ha="center", va="center", fontsize=8, color=text_color)
+        ax3.text(x - 0.04, y - 0.28, f"n={int(row['n'])}", ha="center", va="center", fontsize=7, color=text_color)
     ax3.set_xlim(2.3, 12.85)
     ax3.set_ylim(0.35, 3.72)
     sm = plt.cm.ScalarMappable(cmap=cmap, norm=norm)
@@ -1614,6 +1678,7 @@ def figure_8(context: dict) -> None:
 
     dop.to_csv(OUT / "Fig08" / "dopants_predictions.csv", index=False, encoding="utf-8-sig")
     rank.to_csv(OUT / "Fig08" / "dopant_ranking.csv", encoding="utf-8-sig")
+    add_panel_labels(fig, [ax0, ax1, ax2, ax3])
     savefig(fig, 8, "dopant_validation_screening")
 
 

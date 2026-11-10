@@ -1,0 +1,7 @@
+﻿Model,Estimator,Settings
+RF,RandomForestRegressor,"{""bootstrap"": true, ""max_depth"": 10, ""max_features"": 0.55, ""min_samples_leaf"": 7, ""min_samples_split"": 12, ""n_estimators"": 420, ""random_state"": 42}"
+ExtraTrees,ExtraTreesRegressor,"{""bootstrap"": false, ""max_depth"": 12, ""max_features"": 0.55, ""min_samples_leaf"": 5, ""min_samples_split"": 10, ""n_estimators"": 520, ""random_state"": 42}"
+GBR,GradientBoostingRegressor,"{""alpha"": 0.9, ""learning_rate"": 0.035, ""max_depth"": 3, ""max_features"": ""sqrt"", ""min_samples_leaf"": 5, ""min_samples_split"": 2, ""n_estimators"": 300, ""n_iter_no_change"": null, ""random_state"": 42, ""subsample"": 0.85, ""validation_fraction"": 0.1}"
+HGBR,HistGradientBoostingRegressor,"{""early_stopping"": true, ""l2_regularization"": 0.1, ""learning_rate"": 0.05, ""max_depth"": 4, ""max_features"": 1.0, ""max_iter"": 400, ""min_samples_leaf"": 15, ""n_iter_no_change"": 10, ""random_state"": 42, ""validation_fraction"": 0.15}"
+SVR,SVR,"{""C"": 5, ""epsilon"": 0.1, ""gamma"": ""scale"", ""kernel"": ""rbf"", ""max_iter"": -1}"
+MLP,MLPRegressor,"{""activation"": ""relu"", ""alpha"": 0.01, ""early_stopping"": true, ""epsilon"": 1e-08, ""hidden_layer_sizes"": [64, 32], ""learning_rate"": ""constant"", ""learning_rate_init"": 0.002, ""max_iter"": 1200, ""n_iter_no_change"": 20, ""random_state"": 42, ""solver"": ""adam"", ""validation_fraction"": 0.15}"

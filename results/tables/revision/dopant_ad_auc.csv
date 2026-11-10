@@ -1,0 +1,4 @@
+﻿Score,AUROC doped vs WGS hold-out,Spearman with |error| (doped)
+kNN distance (5 nearest training records),0.9761524822695036,0.02622054976265761
+Base-model disagreement (SD of six predictions),0.7298758865248227,0.5268190903759716
+"kNN distance, descriptor-complete doped records only",0.9806818181818182,0.008469791078486732

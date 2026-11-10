@@ -1,0 +1,4 @@
+﻿Subset,n,Distinct predictions,Distinct dopants,R2,RMSE,MAE,Spearman_rho,Mean signed error (pred - DFT)
+All dopant records,94,32,26,-0.6778,1.3227,0.9658,0.169,-0.2042
+Substrate descriptors available,22,22,22,-4.5534,0.787,0.7178,-0.3683,-0.7032
+Substrate descriptors missing,72,10,14,-0.7104,1.4474,1.0416,0.3966,-0.0517

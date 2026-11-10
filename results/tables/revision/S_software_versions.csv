@@ -1,0 +1,12 @@
+﻿Package,Version
+Python,3.12.3
+numpy,1.26.4
+pandas,2.2.2
+sklearn,1.5.1
+scipy,1.13.1
+statsmodels,0.14.2
+matplotlib,3.9.2
+seaborn,0.13.2
+networkx,3.3
+joblib,1.4.2
+openpyxl,3.1.5

@@ -1,0 +1,9 @@
+﻿Sheet,Records,Label,Role,Valid,Missing (%)
+WGS,600,E_ads_ev,Primary regression target,599,0.2
+WGS,600,E_activation_ev,Consistency analysis only,62,89.7
+WGS,600,E_reaction_ev,Consistency analysis only,62,89.7
+WGS,600,Reaction,Reaction-path grouping,63,89.5
+Dopants,100,E_ads_ev,Primary regression target,94,6.0
+Dopants,100,E_activation_ev,Consistency analysis only,0,100.0
+Dopants,100,E_reaction_ev,Consistency analysis only,0,100.0
+Dopants,100,Reaction,Reaction-path grouping,0,100.0

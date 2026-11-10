@@ -1,0 +1,23 @@
+﻿Category,Descriptor,Description,Unit,WGS valid (n = 599),WGS missing (%),Dopants valid (n = 94),Dopants missing (%),WGS mean,WGS SD,WGS min,WGS max
+Structural,a_ang,Lattice constant: In-plane lattice constant of the MXene slab,Å,599,0.0,22,76.6,3.06,0.18,2.58,3.81
+Structural,Stacking,Stacking sequence: Layer stacking mode (ABA or ABC),–,599,0.0,94,0.0,,,,
+Structural,N_Layers,Number of atomic layers: Atomic layers in the slab,–,599,0.0,94,0.0,,,,
+Structural,Layer_dist_MX,M–X interlayer distance: Distance between metal and C/N layers,Å,599,0.0,22,76.6,1.18,0.16,0.32,1.71
+Structural,Layer_dist_MM,M–M interlayer distance: Distance between adjacent metal layers,Å,599,0.0,22,76.6,2.42,0.22,1.87,2.93
+Structural,Length_MX,M–X bond length: Bond length between metal and C/N,Å,599,0.0,22,76.6,2.13,0.14,1.9,2.87
+Structural,Length_MT1,M–T bond length: Bond length between metal and surface termination,Å,258,56.9,0,100.0,2.14,0.19,1.83,2.72
+Thermodynamic,E_Form,Formation energy: DFT formation energy of the MXene,eV,599,0.0,22,76.6,-2.7,4.68,-21.8,3.35
+Electronic,Bader_M1,Bader charge of M1: Bader charge on the primary metal,e,599,0.0,22,76.6,1.31,0.5,0.61,3.36
+Electronic,Bader_M2,Bader charge of M2: Bader charge on the secondary metal,e,166,72.3,22,76.6,1.71,0.16,1.34,2.14
+Electronic,Bader_X,Bader charge of X: Bader charge on C or N,e,599,0.0,22,76.6,-1.84,0.47,-4.66,-0.9
+Electronic,Bader_T1,Bader charge of T: Bader charge on the surface termination,e,258,56.9,0,100.0,-0.9,0.28,-1.73,-0.42
+Electronic,Band_gap_PBE_ev,PBE band gap: Band gap from the PBE functional,eV,599,0.0,22,76.6,0.05,0.16,0.0,1.03
+Composition,M1,Primary metal: Primary metal element,–,599,0.0,94,0.0,,,,
+Composition,M2,Secondary metal: Secondary metal element (ordered double-metal MXenes),–,166,72.3,0,100.0,,,,
+Composition,X,X element: C or N,–,599,0.0,94,0.0,,,,
+Surface chemistry,T1_type,Termination type: Surface termination group,–,258,56.9,64,31.9,,,,
+Adsorbate,Mol,Adsorbate species: WGSR-related adsorbate,–,599,0.0,94,0.0,,,,
+Dopant,Dopant,Dopant element: Substitutional dopant (dopants sheet only),–,0,100.0,94,0.0,,,,
+Target,E_ads_ev,"Adsorption energy: Primary prediction target, Eq. (1)",eV,599,0.0,94,0.0,-1.64,1.97,-11.69,0.05
+Secondary label,E_activation_ev,Activation energy: Used only for the consistency analysis,eV,62,89.6,0,100.0,0.88,0.95,0.0,3.37
+Secondary label,E_reaction_ev,Reaction energy: Used only for the consistency analysis,eV,62,89.6,0,100.0,-0.68,2.06,-3.35,2.83
