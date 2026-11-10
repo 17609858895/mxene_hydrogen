@@ -62,3 +62,28 @@ seaborn 0.13.2, networkx 3.3, joblib 1.4.2, openpyxl 3.1.5.
 - The dopant column lists `Rd` for the four records named `Pd@W2CO2`; they are assigned to Pd.
 - The WGS-domain model is not suitable for doped MXenes: the dopant is not represented in the training data. The dopant
   subset is used only for transfer diagnostics and for DFT-labelled trend summaries.
+
+## Result files and tables of the revised manuscript
+
+File names in `results/tables/` keep the numbering of the generating scripts; the corresponding tables are:
+
+| File | Table |
+| --- | --- |
+| `Table1_WGS_Model_Performance.csv` | Table 1 |
+| `TableS1_Label_Availability.csv` | Table S1a |
+| `TableS2_Descriptors_and_Coverage.csv` | Table S2 |
+| `TableS3_Missingness_Sensitivity.csv` | Table S3b |
+| `TableS4a_CV_TOPSIS.csv` | Table S5a |
+| `TableS4b_Wilcoxon_p.csv` | Table S5b (raw p values) |
+| `TableS5_Repeated_Splits*.csv` | Table S6 (base models and ensemble) |
+| `TableS6_Activation_Subset.csv` | Table S11a |
+| `TableS7a_Transfer_by_Subset.csv` | Table S12a |
+| `TableS7b_Dopant_Resolved.csv` | Table S13 |
+| `TableS8_Window_Sensitivity.csv` | Table S14 |
+| `revision/grouped_cv*.csv` | Table 2, Table S7 |
+| `revision/splits_*.csv` | Tables S3c, S5a (mean weights), S6, S8, S9, S10 |
+| `revision/ref_missingness_*.csv`, `revision/ref_wilcoxon_*.csv` | Tables S3a, S5b (Holm-adjusted) |
+| `revision/S_*.csv` | Table S4 |
+| `revision/activation_within_channel.csv` | Table S11b |
+| `revision/dopant_*.csv` | Table S12b–d |
+| `revision/fewshot_*.csv` | Table 3, Table S15 |
